@@ -6,10 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from numpy import pi
 
 default_R = 6000.      # radius of the disk (km)
 default_H = 200.       # half-thickness of the disk (km)
 default_W = 0.         # angular speed (rotation) in rad/s
+earth_W = 2.*pi / (3600*24)
 
 default_resolution = 30 # km per pixel
 
@@ -47,6 +49,11 @@ def calc_dist_from_center(M=None, shape=None, center=None, z=0):
     distM = np.linalg.norm(coords, axis=0)
     return distM
 
+def calc_rotation_acceleration(r, w=earth_W):
+    """Given the constant angular speed w and the radius of your location r, 
+    compute the acceleration"""
+    return r * w**2
+
 
 def fill_mass(M, rhoc=default_rho, rhof=None, resolution=default_resolution):
     """rhoc : rho is given as a constant
@@ -62,18 +69,20 @@ def fill_mass(M, rhoc=default_rho, rhof=None, resolution=default_resolution):
 
 
 def apply_gravitation_loc(loc, planar, h=default_h,
-                          resolution=default_resolution):
+                          resolution=default_resolution, z=None):
+    if z is None:
+        z = h
     M = planar.shape[0]
     R = M/2
-    distloc = calc_dist_from_center(M, center=(loc, R), z=h) * resolution
+    distloc = calc_dist_from_center(M, center=(loc, R), z=z) * resolution
     # distance in terms of x : ux directed towards the center
     # signed distances:
     distx = (np.array([range(M)]*M, dtype=float) - loc) * resolution
     disty = (np.array([range(M)]*M, dtype=float).T - R) * resolution
-    distz = h * resolution
+    distz = z * resolution
 
     dV = 2*h * 1.**2 * resolution**3
-    dg = G * dV * planar / (distloc**2)
+    dg = G * dV * planar / (distloc**2) # I am getting into trouble when dist=0
     # gravitational field
     gx = (dg * distx/distloc).sum()
     gy = (dg * disty/distloc).sum() # gy should always be zero
@@ -88,8 +97,19 @@ def apply_gravitation(planar, step=10, resolution=default_resolution):
         g[:, loc] = apply_gravitation_loc(loc, planar, resolution=resolution)
     return g
 
+#g_side = apply_gravitation_loc(-1, planar, h=0, resolution=resolution)
+def apply_rotation(g, w=earth_W, resolution=default_resolution, copy=True):
+    r = np.arange(g.shape[1])[::-1] * resolution
+    rot = r * (w**2)
+    gr = g.copy() if copy else g
+    gr[0,:] -= rot
+    return gr
 
-def draw_gravitation(g, ax, step=10, h=default_h, resolution=default_resolution):
+
+def draw_acceleration(g, ax, step=10, h=default_h, g_side=None,
+                     resolution=default_resolution, prop=False):
+    if prop:
+        ax.set_aspect('equal')
     # scaling
     g_norm = np.linalg.norm(g, axis=0)
     scale_f = g_norm.max() / step
@@ -98,11 +118,20 @@ def draw_gravitation(g, ax, step=10, h=default_h, resolution=default_resolution)
     #max_gz = scaled_g[2].max()
     min_gz = scaled_g[2].min()
     xmax = g.shape[1]
-    for j in range(xmax):
+    for j in range(0, xmax, step):
         gx, gy, gz = scaled_g[:, j]
         if not gx==gy==gz==0:
             ax.arrow(j-gx, 0-gz, gx, gz, length_includes_head=True,#) #,
                      head_width=step*0.1)
+    if g_side is not None:
+        gs_x, gs_y, gs_z = g_side
+        gs_x /= scale_f
+        gs_y /= scale_f
+        gs_z /= scale_f
+        ax.arrow(0-gs_x, -h - gs_z, gs_x, gs_z, length_includes_head=True,#) #,
+                 head_width=step*0.1)
+        max_gx = max(max_gx, gs_x)
+
     # draw the disk
     ax.add_patch(patches.Rectangle((0, 0), xmax, -2*default_h))
     ax.set_xlim(0 - 1.1*max_gx, xmax)
