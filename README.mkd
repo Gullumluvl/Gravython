@@ -1,1 +1,20 @@
-# Gravython
+Gravython
+=========
+
+## Example
+
+In IPython:
+
+    %run -n flatdiskgravity.py
+    M=400; planar, distM = fill_mass(M)
+    g = apply_gravitation(planar)
+    resolution = default_resolution
+    g_side = apply_gravitation_loc(-1, planar, z=0, resolution=resolution)
+    fig, ax = plt.subplots(figsize=(10,4))
+    draw_acceleration(g, ax, g_side=g_side, prop=True)
+    fig.savefig("example.png", bbox_inches='tight')
+    plt.close()
+
+And there it is:
+
+(example.png)
