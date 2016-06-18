@@ -17,4 +17,4 @@ In IPython:
 
 And there it is:
 
-(example.png)
+![example](example.png)
